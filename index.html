@@ -567,12 +567,19 @@ function renderKPIs(c) {
 }
 
 function renderStatusDonut(c) {
-  const order = ['Active','Onboarding','Notice Period','Offboarded'];
+  const baseOrder = ['Active','Onboarding','Notice Period','Offboarded'];
   const colorVar = { Active:'--good', Onboarding:'--indigo', 'Notice Period':'--warn', Offboarded:'--rose' };
   const cssColor = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  // Any Contractor Status recorded in the source that isn't exactly one of the four approved buckets
+  // (e.g. a record literally marked "Notice" instead of "Notice Period") is never folded into an
+  // approved category — it gets its own distinct, clearly-labeled slice using the source's exact text,
+  // so its count is visible on the dashboard without ever being reassigned or guessed at.
+  const extraStatuses = Object.keys(c.statusCounts).filter(s => !baseOrder.includes(s)).sort();
+  const order = baseOrder.concat(extraStatuses);
+  const slate = cssColor('--slate');
   const labels = order;
   const values = order.map(s => c.statusCounts[s]||0);
-  const colors = order.map(s => cssColor(colorVar[s]));
+  const colors = order.map(s => colorVar[s] ? cssColor(colorVar[s]) : slate);
   const ok = mountChart('status', 'statusChart', {
     type: 'doughnut',
     data: { labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 0, cutout: '72%' }] },
@@ -583,7 +590,10 @@ function renderStatusDonut(c) {
   document.getElementById('statusDonutCenter').innerHTML = `<div class="n">${fmt(c.totalRecords)}</div><div class="l">Total Contractors</div>`;
   document.getElementById('statusLegend').innerHTML = order.map((s,i) => {
     const v = c.statusCounts[s]||0;
-    return `<li><span class="sw" style="background:${colors[i]}"></span><span class="lname">${s}</span><span class="lcount">${fmt(v)}</span><span class="lpct">${fmtPct(v/c.totalRecords)}</span></li>`;
+    const nameHtml = extraStatuses.includes(s)
+      ? `${s} <span style="color:var(--text-muted);font-weight:500;">(not a recognized status)</span>`
+      : s;
+    return `<li><span class="sw" style="background:${colors[i]}"></span><span class="lname">${nameHtml}</span><span class="lcount">${fmt(v)}</span><span class="lpct">${fmtPct(v/c.totalRecords)}</span></li>`;
   }).join('');
 }
 
@@ -732,10 +742,11 @@ function renderReconcileWarning(c, rec, isLive) {
   const unexpectedEntries = Object.entries(c.unexpectedStatuses || {});
   if (unexpectedEntries.length) {
     // A status that isn't exactly "Active" / "Onboarding" / "Notice Period" / "Offboarded" is never
-    // silently folded into one of those four — it's excluded from every KPI/status count until the
-    // source cell is corrected, and flagged here so it doesn't just look like it "isn't updating."
+    // silently folded into one of those four — it gets its own labeled slice in Headcount by Status
+    // (so its count is never hidden), but it's excluded from the five approved KPI cards above until
+    // the source cell is corrected, and flagged here so it doesn't just look like it "isn't updating."
     const desc = unexpectedEntries.map(([status, n]) => `"${status}" (${n})`).join(', ');
-    problems.push(`${unexpectedEntries.reduce((s,[,n])=>s+n,0)} record(s) have a Contractor Status not recognized as Active/Onboarding/Notice Period/Offboarded — ${desc} — excluded from all status KPIs until corrected in Column L`);
+    problems.push(`${unexpectedEntries.reduce((s,[,n])=>s+n,0)} record(s) have a Contractor Status not recognized as Active/Onboarding/Notice Period/Offboarded — ${desc} — shown as its own status in the "Headcount by Status" chart below, but excluded from the KPI cards above until corrected in Column L`);
   }
   if (problems.length) {
     banner.style.display = 'block';
