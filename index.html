@@ -939,10 +939,14 @@ async function refresh() {
     // count already computed above and say so — never silently show mismatched-methodology
     // numbers with no explanation.
     try {
-      const [olderCandTable, newerCandTable] = await Promise.all([
-        loadGvizSheet(OLDER_CANDIDATES_TAB),
-        loadGvizSheetByGid(NEWER_CANDIDATES_GID),
-      ]);
+      // Sequential, not Promise.all: loadGvizSheet/loadGvizSheetByGid both rely on a single
+      // shared global JSONP callback (window.google.visualization.Query.setResponse). Firing two
+      // of these fetches concurrently lets the second call's setup overwrite that callback before
+      // the first response arrives, so one fetch resolves to the wrong data (or never resolves at
+      // all, hanging until the 12s timeout). Master Hire and Dashboard above avoid this the same
+      // way — one full fetch completes before the next begins.
+      const olderCandTable = await loadGvizSheet(OLDER_CANDIDATES_TAB);
+      const newerCandTable = await loadGvizSheetByGid(NEWER_CANDIDATES_GID);
       const formHires = computeHiresFromCandidateForms(olderCandTable, newerCandTable);
       computed.hiresByMonth2026 = formHires.hiresByMonth2026;
       computed.hiresMeta = formHires;
