@@ -221,6 +221,10 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="14 7 21 7 21 14"/></svg>
         Trends
       </button>
+      <button data-target="rolesAnchor">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+        Roles
+      </button>
       <button data-target="clientAnchor">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/></svg>
         Clients
@@ -282,6 +286,17 @@
       </section>
     </div>
 
+    <div class="row2" id="rolesAnchor" style="grid-template-columns: 1fr;">
+      <section class="panel">
+        <div class="panel-head">
+          <div><h2>Top 10 Roles Hired</h2><div class="panel-sub" id="rolesSub"></div></div>
+          <button class="viewall" id="rolesViewAllBtn">View all</button>
+        </div>
+        <div style="height:320px" id="rolesChartBox"><canvas id="rolesChart"></canvas></div>
+        <details class="morerows" id="rolesMoreWrap"><summary>Full role list</summary><table class="data" id="rolesTableFull"></table></details>
+      </section>
+    </div>
+
     <div class="row2" style="grid-template-columns: 7fr 5fr; align-items: start;">
       <section class="panel" id="clientAnchor">
         <div class="panel-head">
@@ -319,7 +334,7 @@
   </main>
 </div>
 
-<script id="snapshot-data" type="application/json">{"fetchedAt":"2026-08-12T04:05:00Z","computed":{"totalRecords":96,"active":51,"onboarding":1,"noticePeriod":0,"offboarded":43,"statusCounts":{"Active":51,"Notice":1,"Offboarded":43,"Onboarding":1},"unexpectedStatuses":{"Notice":1},"missingCols":[],"duplicateHireIds":[],"byClientActive":{"Ficomm":1,"Talent Scout":4,"LQF":1,"Acadaca":1,"Guitars Over Guns":1,"ATAK":2,"AI Smart Marketing":1,"Haley Marketing":3,"Direct Agents":12,"71lbs":1,"PCSP":1,"Cullen and Rose":2,"Gnomon":1,"SRG Marketing":1,"Compound Effect":1,"Adroit Insights":1,"Brisket Supply":1,"The Lyon Brand":1,"Command C":1,"Summit Equity Investments":1,"Vasculearn":1,"Miami Ad School":1,"Mojo Supermarket":2,"Unified Service Partners":1,"Afterburner":1,"JSB Media":1,"GreatWater Garages":1,"BTI Group":1,"Build Your Firm":1,"Hawke Media":1,"LeadSmith":1,"Lemon Wedge Pty Ltd (Masseuse Health Co)":1},"byCountryActive":{"El Salvador":1,"Colombia":7,"Mexico":5,"Brazil":13,"Honduras":1,"Argentina":9,"Peru":2,"Chile":2,"Ecuador":2,"Paraguay":1,"Costa Rica":3,"Bolivia":1,"Venezuela":1,"United States":1,"Dominican Republic":1,"Panam\u00e1":1},"currentPopulationSize":52,"missingCountryCurrent":[],"missingClientCurrent":[],"hiresByMonth2026":{"1":5,"2":6,"3":7,"4":4,"5":6,"6":5,"7":7,"8":2,"9":0,"10":0,"11":0,"12":0},"hiresMeta":{"source":"forms","totalDistinctCandidates":68,"duplicateSubmissions":14,"duplicateDetail":[{"name":"Micaela Sol Rosales","email":"micarosales.dg@gmail.com","submissions":2},{"name":"Lucas Petry Heck","email":"lucaspheck@gmail.com","submissions":2},{"name":"Adrian Gamarra","email":"adriangamarra96@gmail.com","submissions":3},{"name":"Victoria Font","email":"victoriafontr@gmail.com","submissions":2},{"name":"Lucía Cancinos","email":"lucancinos@gmail.com","submissions":2},{"name":"Lucas Fogliatti","email":"lucas.fogliatti99@gmail.com","submissions":2},{"name":"Jannia Carolina Tovio","email":"tovio.jannia@gmail.com","submissions":2},{"name":"Beatriz Rosales Ugarte","email":"beatrizrosalesu@gmail.com","submissions":2},{"name":"Oswaldo Andres Salcedo Trejo","email":"oastrejo@gmail.com","submissions":2},{"name":"Bruno Rocha Teixeira","email":"br.txr@outlook.com","submissions":2},{"name":"Lucas Felipe Simões","email":"lucas.felipe.simoes@gmail.com","submissions":2},{"name":"Diego Francisco Viloria Cevedo","email":"diegovilce@gmail.com","submissions":2},{"name":"João Pedro Salça Rodrigues","email":"joaopsalca@gmail.com","submissions":2}],"skippedTestRows":0,"skippedMissingFields":0,"skippedBadDates":0},"offboardingsByMonth2026":{"1":2,"2":6,"3":3,"4":4,"5":6,"6":2,"7":3,"8":0,"9":0,"10":0,"11":0,"12":0},"missingEndDateOffboarded":["Elizeth Da Silva Bomba","Rodrigo Andres Alvarado Torres","Lucia Cancinos","Lucca Rick David","Maria Camila","Ricardo Segovia Torres","Ricardo Segovia Torres","Lucas Petry Heck"],"missingStartDateAny":[],"malformedStartDates":[],"malformedEndDates":[]},"dashboard":{"headcount":{"Active":51,"Onboarding":1,"Offboarded":43,"Other statuses":1,"Total on roster":96},"clientActive":{"Direct Agents":12,"Talent Scout":4,"Haley Marketing":3,"ATAK":2,"Cullen and Rose":2,"Mojo Supermarket":2,"71lbs":1,"AI Smart Marketing":1,"Acadaca":1,"Adroit Insights":1,"Afterburner":1,"BTI Group":1,"Brisket Supply":1,"Build Your Firm":1,"Command C":1,"Compound Effect":1,"Ficomm":1,"Gnomon":1,"GreatWater Garages":1,"Guitars Over Guns":1,"Hawke Media":1,"JSB Media":1,"LQF":1,"LeadSmith":1,"Lemon Wedge Pty Ltd (Masseuse Health Co)":1,"Miami Ad School":1,"PCSP":1,"SRG Marketing":1,"Summit Equity Investments":1,"The Lyon Brand":1,"Unified Service Partners":1,"Vasculearn":1},"statusLive":{"Active":51,"Offboarded":43,"Notice":1,"Onboarding":1},"countryActive":{"Brazil":13,"Argentina":9,"Colombia":7,"Mexico":5,"Costa Rica":3,"Chile":2,"Ecuador":2,"Peru":2,"Bolivia":1,"Dominican Republic":1,"El Salvador":1,"Honduras":1,"Panam\u00e1":1,"Paraguay":1,"United States":1,"Venezuela":1}},"reconcile":{"activeFromMaster":51,"activeFromDashboardHeadcount":51,"activeFromStatusLive":51,"sumClient":47,"sumCountry":51,"excludedClientActive":4,"clientReconciles":true,"countryReconciles":true,"headcountReconciles":true,"statusLiveReconciles":true}}</script>
+<script id="snapshot-data" type="application/json">{"fetchedAt":"2026-08-12T04:05:00Z","computed":{"totalRecords":96,"active":51,"onboarding":1,"noticePeriod":0,"offboarded":43,"statusCounts":{"Active":51,"Notice":1,"Offboarded":43,"Onboarding":1},"unexpectedStatuses":{"Notice":1},"missingCols":[],"duplicateHireIds":[],"roleCounts":{"Paid Media Manager":13,"Project Manager":13,"Graphic Designer":7,"Social Media Manager":5,"Account Manager":3,"Social Content Designer":3,"Executive Assistant":3,"Paid Media Specialist":3,"Talent Acquisition Specliatist":2,"Customer experience agent":2,"Java Developer":1,"Payroll & HR Operations Manager":1,"UI/UX Designer":1,"Digital Marketing Manager":1,"Pricing Analyst":1,"Engagement Coordinator":1,"People Operations Manager":1,"Senior Paid Media Specialist":1,"Operations & Implementation Specialist":1,"CRM Specialist":1,"Sr Local SEO Specialist":1,"Planning & Operations Manager":1,"SEO Manager":1,"eCommerce Strategist":1,"Paid Search Analyst":1,"Outreach Engagement Coordinator":1,"Marketing Operations Manager":1,"Motion Graphic Designer":1,"Website CRO Specialist":1,"Digital Marketing Advisor":1,"Paid Recruitment Marketing Specialist":1,"Social Media Assistant":1,"Client Success Manager":1,"Marketing Analytics Manager":1,"Designer":1,"Customer Experience Manager":1,"Performance Marketer":1,"Director of eCommerce":1,"Sr. Performance Marketing Manager":1,"Operations Assistant":1,"Project and Operations Manager":1,"Resourcing and Ops Coordinator":1,"HubSpot Specialist":1,"Social Content Creator":1,"PM - Client Services":1,"Paid Search & Social Analyst":1,"Director - Creative Operations":1,"Senior Shopify Web Developer":1,"CRO Account Strategist":1},"missingRole":4,"byClientActive":{"Ficomm":1,"Talent Scout":4,"LQF":1,"Acadaca":1,"Guitars Over Guns":1,"ATAK":2,"AI Smart Marketing":1,"Haley Marketing":3,"Direct Agents":12,"71lbs":1,"PCSP":1,"Cullen and Rose":2,"Gnomon":1,"SRG Marketing":1,"Compound Effect":1,"Adroit Insights":1,"Brisket Supply":1,"The Lyon Brand":1,"Command C":1,"Summit Equity Investments":1,"Vasculearn":1,"Miami Ad School":1,"Mojo Supermarket":2,"Unified Service Partners":1,"Afterburner":1,"JSB Media":1,"GreatWater Garages":1,"BTI Group":1,"Build Your Firm":1,"Hawke Media":1,"LeadSmith":1,"Lemon Wedge Pty Ltd (Masseuse Health Co)":1},"byCountryActive":{"El Salvador":1,"Colombia":7,"Mexico":5,"Brazil":13,"Honduras":1,"Argentina":9,"Peru":2,"Chile":2,"Ecuador":2,"Paraguay":1,"Costa Rica":3,"Bolivia":1,"Venezuela":1,"United States":1,"Dominican Republic":1,"Panam\u00e1":1},"currentPopulationSize":52,"missingCountryCurrent":[],"missingClientCurrent":[],"hiresByMonth2026":{"1":5,"2":6,"3":7,"4":4,"5":6,"6":5,"7":7,"8":2,"9":0,"10":0,"11":0,"12":0},"hiresMeta":{"source":"forms","totalDistinctCandidates":68,"duplicateSubmissions":14,"duplicateDetail":[{"name":"Micaela Sol Rosales","email":"micarosales.dg@gmail.com","submissions":2},{"name":"Lucas Petry Heck","email":"lucaspheck@gmail.com","submissions":2},{"name":"Adrian Gamarra","email":"adriangamarra96@gmail.com","submissions":3},{"name":"Victoria Font","email":"victoriafontr@gmail.com","submissions":2},{"name":"Lucía Cancinos","email":"lucancinos@gmail.com","submissions":2},{"name":"Lucas Fogliatti","email":"lucas.fogliatti99@gmail.com","submissions":2},{"name":"Jannia Carolina Tovio","email":"tovio.jannia@gmail.com","submissions":2},{"name":"Beatriz Rosales Ugarte","email":"beatrizrosalesu@gmail.com","submissions":2},{"name":"Oswaldo Andres Salcedo Trejo","email":"oastrejo@gmail.com","submissions":2},{"name":"Bruno Rocha Teixeira","email":"br.txr@outlook.com","submissions":2},{"name":"Lucas Felipe Simões","email":"lucas.felipe.simoes@gmail.com","submissions":2},{"name":"Diego Francisco Viloria Cevedo","email":"diegovilce@gmail.com","submissions":2},{"name":"João Pedro Salça Rodrigues","email":"joaopsalca@gmail.com","submissions":2}],"skippedTestRows":0,"skippedMissingFields":0,"skippedBadDates":0},"offboardingsByMonth2026":{"1":2,"2":6,"3":3,"4":4,"5":6,"6":2,"7":3,"8":0,"9":0,"10":0,"11":0,"12":0},"missingEndDateOffboarded":["Elizeth Da Silva Bomba","Rodrigo Andres Alvarado Torres","Lucia Cancinos","Lucca Rick David","Maria Camila","Ricardo Segovia Torres","Ricardo Segovia Torres","Lucas Petry Heck"],"missingStartDateAny":[],"malformedStartDates":[],"malformedEndDates":[]},"dashboard":{"headcount":{"Active":51,"Onboarding":1,"Offboarded":43,"Other statuses":1,"Total on roster":96},"clientActive":{"Direct Agents":12,"Talent Scout":4,"Haley Marketing":3,"ATAK":2,"Cullen and Rose":2,"Mojo Supermarket":2,"71lbs":1,"AI Smart Marketing":1,"Acadaca":1,"Adroit Insights":1,"Afterburner":1,"BTI Group":1,"Brisket Supply":1,"Build Your Firm":1,"Command C":1,"Compound Effect":1,"Ficomm":1,"Gnomon":1,"GreatWater Garages":1,"Guitars Over Guns":1,"Hawke Media":1,"JSB Media":1,"LQF":1,"LeadSmith":1,"Lemon Wedge Pty Ltd (Masseuse Health Co)":1,"Miami Ad School":1,"PCSP":1,"SRG Marketing":1,"Summit Equity Investments":1,"The Lyon Brand":1,"Unified Service Partners":1,"Vasculearn":1},"statusLive":{"Active":51,"Offboarded":43,"Notice":1,"Onboarding":1},"countryActive":{"Brazil":13,"Argentina":9,"Colombia":7,"Mexico":5,"Costa Rica":3,"Chile":2,"Ecuador":2,"Peru":2,"Bolivia":1,"Dominican Republic":1,"El Salvador":1,"Honduras":1,"Panam\u00e1":1,"Paraguay":1,"United States":1,"Venezuela":1}},"reconcile":{"activeFromMaster":51,"activeFromDashboardHeadcount":51,"activeFromStatusLive":51,"sumClient":47,"sumCountry":51,"excludedClientActive":4,"clientReconciles":true,"countryReconciles":true,"headcountReconciles":true,"statusLiveReconciles":true}}</script>
 <script>
 const SPREADSHEET_ID = '1yI8diJu9om5L2PFeq8Ey4FA00WKezjC09xl09sPZRnk';
 const SOURCE_VIEW_URL = 'https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID + '/edit';
@@ -385,6 +400,7 @@ function computeFromMasterHire(table) {
     country: colIndex(cols,'Country'), hireId: colIndex(cols,'Hire ID'),
     status: colIndex(cols,'Contractor Status'),
     startDate: colIndex(cols,'Start Date'), endDate: colIndex(cols,'End Date'),
+    role: colIndex(cols,'Title'),
   };
   const missingCols = Object.entries(idx).filter(([k,v]) => v === -1).map(([k]) => k);
   const records = [];
@@ -397,6 +413,7 @@ function computeFromMasterHire(table) {
     records.push({
       name, company: cellStr(c[idx.company]), country: cellStr(c[idx.country]),
       hireId: cellStr(c[idx.hireId]), status: cellStr(c[idx.status]),
+      role: idx.role === -1 ? null : cellStr(c[idx.role]),
       startDateRaw: !!(startCell && startCell.v !== null && startCell.v !== undefined && startCell.v !== ''),
       startDate: parseGvizDate(startCell),
       endDateRaw: !!(endCell && endCell.v !== null && endCell.v !== undefined && endCell.v !== ''),
@@ -442,8 +459,21 @@ function computeFromMasterHire(table) {
   const missingEndDateOffboarded = records.filter(r => r.status === 'Offboarded' && !r.endDateRaw).map(r => r.name);
   const missingStartDateAny = records.filter(r => !r.startDateRaw).map(r => r.name);
 
+  // Top 10 Roles Hired: every historical record counts (any status — Active, Onboarding, Notice
+  // Period, Offboarded), from Master Hire's "Title / Role" column, exact text as recorded. Role
+  // spelling/casing is never normalized or merged (e.g. a typo'd role stays its own bucket,
+  // distinct from a correctly-spelled one) — the knowledge base's "no silent data cleaning" rule
+  // applies here same as everywhere else. A record with no role recorded is excluded and counted
+  // in missingRole rather than guessed.
+  const roleCounts = {};
+  let missingRole = 0;
+  for (const r of records) {
+    if (r.role) roleCounts[r.role] = (roleCounts[r.role]||0) + 1;
+    else missingRole++;
+  }
+
   return { totalRecords, active, onboarding, noticePeriod, offboarded, statusCounts, unexpectedStatuses,
-    missingCols, duplicateHireIds, byClientActive, byCountryActive,
+    missingCols, duplicateHireIds, byClientActive, byCountryActive, roleCounts, missingRole,
     currentPopulationSize: current.length, missingCountryCurrent, missingClientCurrent,
     hiresByMonth2026, offboardingsByMonth2026, missingEndDateOffboarded, missingStartDateAny,
     malformedStartDates, malformedEndDates };
@@ -652,6 +682,7 @@ function render(computed, dashboard, rec, fetchedAt, isLive) {
     () => renderKPIs(computed),
     () => renderStatusDonut(computed),
     () => renderTrends(computed),
+    () => renderTopRoles(computed),
     () => renderClients(computed, dashboard, rec),
     () => renderCountries(computed, dashboard, rec),
     () => renderAnalytics(computed, dashboard, rec),
@@ -759,6 +790,46 @@ function renderClients(c, dashboard, rec) {
   // If the chart can't be built, drop the empty chart box and show the ranked list directly (no toggle, no error text).
   const chartBox = document.getElementById('clientChartBox');
   const moreWrap = document.getElementById('clientMoreWrap');
+  const summary = moreWrap.querySelector('summary');
+  chartBox.style.display = ok ? '' : 'none';
+  moreWrap.open = ok ? moreWrap.open : true;
+  if (summary) summary.style.display = ok ? '' : 'none';
+}
+
+// Top 10 Roles Hired: every historical Master Hire record (any status), ranked by Title/Role.
+// Sorted descending and passed to Chart.js in that order — same convention as the Contractors by
+// Client horizontal bar above — so the most-hired role renders at the top, least at the bottom.
+function renderTopRoles(c) {
+  const map = c.roleCounts || {};
+  const entries = Object.entries(map).sort((a,b)=>b[1]-a[1]);
+  const totalTagged = entries.reduce((s,[,v])=>s+v, 0);
+  const top = entries.slice(0, 10);
+  const accent = getComputedStyle(document.documentElement).getPropertyValue('--indigo').trim();
+  const muted = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim();
+  const ok = mountChart('roles', 'rolesChart', {
+    type: 'bar',
+    data: { labels: top.map(e=>e[0]), datasets: [{ data: top.map(e=>e[1]), backgroundColor: accent, borderRadius: 5, maxBarThickness: 22 }] },
+    options: {
+      indexAxis: 'y',
+      plugins: { legend:{display:false}, tooltip:{ callbacks: { label: ctx => fmt(ctx.raw) + ' hire' + (ctx.raw===1?'':'s') } } },
+      scales: {
+        x: { beginAtZero:true, ticks:{ color: muted, precision:0 }, grid:{ color: '#eef0f5' } },
+        y: { reverse: false, ticks:{ color: '#171923', font:{size:12} }, grid:{ display:false } },
+      },
+      responsive:true, maintainAspectRatio:false,
+    }
+  });
+  const rows = entries.map(([k,v],i) =>
+    `<tr><td><span class="rank">${i+1}</span>${k}</td><td class="num">${fmt(v)}</td><td class="num">${fmtPct(v/(totalTagged||1))}</td></tr>`
+  ).join('');
+  document.getElementById('rolesTableFull').innerHTML =
+    `<thead><tr><th>Role</th><th class="num">Hires</th><th class="num">% of tagged hires</th></tr></thead><tbody>${rows}</tbody>`;
+  const missingNote = c.missingRole ? ` — ⚠ ${fmt(c.missingRole)} record(s) have no recorded role and are excluded` : '';
+  document.getElementById('rolesSub').textContent =
+    `${fmt(entries.length)} distinct roles · ${fmt(totalTagged)} total historical hires, all statuses (Master Hire's Title / Role column)${missingNote}`;
+  // If the chart can't be built, drop the empty chart box and show the ranked list directly (no toggle, no error text) — same fallback pattern as the other ranked panels.
+  const chartBox = document.getElementById('rolesChartBox');
+  const moreWrap = document.getElementById('rolesMoreWrap');
   const summary = moreWrap.querySelector('summary');
   chartBox.style.display = ok ? '' : 'none';
   moreWrap.open = ok ? moreWrap.open : true;
@@ -912,6 +983,8 @@ function exportCSV() {
   lines.push(`Status,Total Contractor Records,${computed.totalRecords}`);
   Object.entries(clientMap).sort((a,b)=>b[1]-a[1]).forEach(([k,v]) => lines.push(`Active by Client,"${k.replace(/"/g,'""')}",${v}`));
   Object.entries(countryMap).sort((a,b)=>b[1]-a[1]).forEach(([k,v]) => lines.push(`Active by Country,"${k.replace(/"/g,'""')}",${v}`));
+  Object.entries(computed.roleCounts||{}).sort((a,b)=>b[1]-a[1]).forEach(([k,v]) => lines.push(`Historical Hires by Role,"${k.replace(/"/g,'""')}",${v}`));
+  if (computed.missingRole) lines.push(`Historical Hires by Role,(no role recorded — excluded),${computed.missingRole}`);
   MONTH_LABELS.slice(0, monthsElapsedIn2026()).forEach((lbl,i) => lines.push(`Hires by Month,${lbl} 2026,${computed.hiresByMonth2026[i+1]||0}`));
   MONTH_LABELS.slice(0, monthsElapsedIn2026()).forEach((lbl,i) => lines.push(`Offboardings by Month,${lbl} 2026,${computed.offboardingsByMonth2026[i+1]||0}`));
   if (computed.hiresMeta && computed.hiresMeta.source === 'forms' && computed.hiresMeta.duplicateDetail.length) {
@@ -976,6 +1049,9 @@ function boot() {
   document.getElementById('liveLabel').textContent = 'Snapshot · connecting to live source…';
   document.getElementById('refreshBtn').addEventListener('click', refresh);
   document.getElementById('exportBtn').addEventListener('click', exportCSV);
+  document.getElementById('rolesViewAllBtn').addEventListener('click', () => {
+    const d = document.getElementById('rolesMoreWrap'); d.open = true; d.scrollIntoView({ behavior:'smooth', block:'center' });
+  });
   document.getElementById('clientViewAllBtn').addEventListener('click', () => {
     const d = document.getElementById('clientMoreWrap'); d.open = true; d.scrollIntoView({ behavior:'smooth', block:'center' });
   });
