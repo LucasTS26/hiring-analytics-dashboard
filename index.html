@@ -208,10 +208,66 @@
   footer.foot { color: var(--text-muted); font-size: 12px; text-align: center; margin-top: 26px; line-height: 1.7; }
   footer.foot a { color: var(--text-secondary); }
   canvas { max-width: 100%; }
+
+  /* ---------- password gate ----------
+     Light deterrent against casual link-sharing, not real protection: this file is public
+     client-side code, so a technically curious visitor can bypass this screen entirely by
+     reading the JS. It intentionally checks a SHA-256 hash rather than a plaintext password
+     so the password itself isn't sitting in plain view in "view source", but that only raises
+     the bar slightly — it does not make this secure. See the security brief for the actual fix. */
+  #gateOverlay {
+    position: fixed; inset: 0; z-index: 999; background: var(--ts-black);
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+  }
+  #gateOverlay .card {
+    width: 100%; max-width: 340px; background: var(--surface); border-radius: 16px;
+    padding: 30px 28px 26px; box-shadow: 0 20px 60px rgba(0,0,0,0.4); text-align: center;
+  }
+  #gateOverlay .gbrand { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 18px; }
+  #gateOverlay .gbrand .mark { width: 24px; height: 24px; color: var(--ts-black); }
+  #gateOverlay .gbrand .word { font-size: 15px; color: var(--ts-black); }
+  #gateOverlay .gbrand .word b { font-weight: 800; }
+  #gateOverlay .gbrand .word span { font-weight: 500; }
+  #gateOverlay h2 { font-size: 15.5px; margin: 0 0 4px; color: var(--text-primary); }
+  #gateOverlay p.hint { font-size: 12.5px; color: var(--text-secondary); margin: 0 0 18px; }
+  #gateOverlay input {
+    width: 100%; box-sizing: border-box; padding: 11px 13px; border-radius: 10px;
+    border: 1px solid var(--border); font-size: 14px; margin-bottom: 10px; font-family: inherit;
+  }
+  #gateOverlay input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+  #gateOverlay button {
+    width: 100%; padding: 11px 13px; border-radius: 10px; border: none; background: var(--accent);
+    color: #fff; font-weight: 700; font-size: 14px; cursor: pointer; font-family: inherit;
+  }
+  #gateOverlay button:hover { background: var(--accent-dark); }
+  #gateOverlay .err { color: var(--rose); font-size: 12.5px; margin-top: 10px; min-height: 15px; }
+  .app.gated { display: none; }
 </style>
 </head>
 <body>
-<div class="app">
+
+<div id="gateOverlay">
+  <div class="card">
+    <div class="gbrand" aria-hidden="true">
+      <div class="mark">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+          <rect x="2" y="2" width="15" height="15" rx="4" stroke="currentColor" stroke-width="2.3"/>
+          <rect x="10" y="10" width="12" height="12" rx="3.2" fill="currentColor"/>
+        </svg>
+      </div>
+      <div class="word"><b>talent</b> <span>scout.</span></div>
+    </div>
+    <h2>Contractors Overview</h2>
+    <p class="hint">Enter the password to view this dashboard.</p>
+    <form id="gateForm" autocomplete="off">
+      <input type="password" id="gatePw" placeholder="Password" autofocus>
+      <button type="submit">Unlock</button>
+      <div class="err" id="gateErr"></div>
+    </form>
+  </div>
+</div>
+
+<div class="app gated">
 
   <aside class="sidebar">
     <div class="brand">
@@ -1085,7 +1141,48 @@ function boot() {
   });
   refresh();
 }
-boot();
+
+/* ---------- password gate ----------
+   Checks a SHA-256 hash, not a plaintext password, so the password itself isn't visible in
+   plain "view source" — but this is still client-side JS running in the visitor's own browser,
+   so it's a deterrent against casual link-sharing, not real access control. It does not protect
+   the underlying Hiring Hub spreadsheet, which has its own exposure independent of this gate. */
+const GATE_HASH = 'a9fc1057883055667c88328f1766971b03342800a9fcbf80d3e1310f0c822225';
+const GATE_SESSION_KEY = 'tsDashboardUnlocked';
+
+async function sha256Hex(text) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function unlockDashboard() {
+  document.getElementById('gateOverlay').style.display = 'none';
+  document.querySelector('.app').classList.remove('gated');
+  boot();
+}
+
+function initGate() {
+  let alreadyUnlocked = false;
+  try { alreadyUnlocked = sessionStorage.getItem(GATE_SESSION_KEY) === '1'; } catch (e) { /* storage blocked — just ask again */ }
+  if (alreadyUnlocked) { unlockDashboard(); return; }
+
+  const form = document.getElementById('gateForm');
+  const input = document.getElementById('gatePw');
+  const err = document.getElementById('gateErr');
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const hash = await sha256Hex(input.value);
+    if (hash === GATE_HASH) {
+      try { sessionStorage.setItem(GATE_SESSION_KEY, '1'); } catch (e) { /* fine without persistence */ }
+      unlockDashboard();
+    } else {
+      err.textContent = 'Incorrect password.';
+      input.value = '';
+      input.focus();
+    }
+  });
+}
+initGate();
 </script>
 </body>
 </html>
