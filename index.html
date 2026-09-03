@@ -733,6 +733,34 @@ function loadGvizSheetByGid(gid) {
 const fmt = n => n.toLocaleString('en-US');
 const fmtPct = n => (n*100).toFixed(1) + '%';
 
+// Every value rendered on this dashboard ultimately comes from the source spreadsheet
+// (client names, country names, role/title text, status labels, candidate names from the
+// onboarding form). None of it is sanitized upstream, so any of it could — accidentally or
+// deliberately — contain characters meaningful to HTML or to a spreadsheet application.
+// escapeHtml() must wrap every such string before it is interpolated into an innerHTML
+// template, so a value like a client name of `<img src=x onerror=alert(1)>` renders as inert
+// text instead of executing.
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// CSV/formula-injection guard: a cell whose text starts with =, +, -, or @ is interpreted as
+// a formula by Excel/Sheets/Numbers when the exported file is opened, which can be used to
+// smuggle a live formula (including one that shells out or calls a remote URL in some
+// configurations) into whatever opens this export. Prefixing with a leading apostrophe forces
+// spreadsheet apps to treat the cell as plain text; the existing quote-doubling still applies
+// for correct CSV quoting.
+function csvSafeCell(str) {
+  const s = String(str);
+  const guarded = /^[=+\-@]/.test(s) ? "'" + s : s;
+  return guarded.replace(/"/g, '""');
+}
+
 let charts = {};
 function destroyChart(key) { if (charts[key]) { charts[key].destroy(); delete charts[key]; } }
 // Returns true/false — never writes an error message into the page. Callers decide
@@ -836,8 +864,8 @@ function renderStatusDonut(c) {
   document.getElementById('statusLegend').innerHTML = order.map((s,i) => {
     const v = c.statusCounts[s]||0;
     const nameHtml = extraStatuses.includes(s)
-      ? `${s} <span style="color:var(--text-muted);font-weight:500;">(not a recognized status)</span>`
-      : s;
+      ? `${escapeHtml(s)} <span style="color:var(--text-muted);font-weight:500;">(not a recognized status)</span>`
+      : escapeHtml(s);
     return `<li><span class="sw" style="background:${colors[i]}"></span><span class="lname">${nameHtml}</span><span class="lcount">${fmt(v)}</span><span class="lpct">${fmtPct(v/c.totalRecords)}</span></li>`;
   }).join('');
 }
@@ -845,7 +873,7 @@ function renderStatusDonut(c) {
 function buildFullTable(map, total) {
   const entries = Object.entries(map).sort((a,b)=>b[1]-a[1]);
   const rows = entries.map(([k,v],i) =>
-    `<tr><td><span class="rank">${i+1}</span>${k}</td><td class="num">${fmt(v)}</td><td class="num">${fmtPct(v/total)}</td></tr>`
+    `<tr><td><span class="rank">${i+1}</span>${escapeHtml(k)}</td><td class="num">${fmt(v)}</td><td class="num">${fmtPct(v/total)}</td></tr>`
   ).join('');
   return `<thead><tr><th>Name</th><th class="num">Active</th><th class="num">% of active</th></tr></thead><tbody>${rows}</tbody>`;
 }
@@ -910,7 +938,7 @@ function renderTopRoles(c) {
     }
   });
   const rows = entries.map(([k,v],i) =>
-    `<tr><td><span class="rank">${i+1}</span>${k}</td><td class="num">${fmt(v)}</td><td class="num">${fmtPct(v/(totalTagged||1))}</td></tr>`
+    `<tr><td><span class="rank">${i+1}</span>${escapeHtml(k)}</td><td class="num">${fmt(v)}</td><td class="num">${fmtPct(v/(totalTagged||1))}</td></tr>`
   ).join('');
   document.getElementById('rolesTableFull').innerHTML =
     `<thead><tr><th>Role</th><th class="num">Hires</th><th class="num">% of tagged hires</th></tr></thead><tbody>${rows}</tbody>`;
@@ -943,7 +971,7 @@ function renderCountries(c, dashboard, rec) {
   document.getElementById('countryChart').style.display = ok ? '' : 'none';
   document.getElementById('countryDonutCenter').innerHTML = `<div class="n">${fmt(total)}</div><div class="l">Active Contractors</div>`;
   document.getElementById('countryLegend').innerHTML = sliceEntries.map(([name,v],i) =>
-    `<li><span class="sw" style="background:${colors[i]}"></span><span class="lname">${name}</span><span class="lcount">${fmt(v)}</span><span class="lpct">${fmtPct(v/total)}</span></li>`
+    `<li><span class="sw" style="background:${colors[i]}"></span><span class="lname">${escapeHtml(name)}</span><span class="lcount">${fmt(v)}</span><span class="lpct">${fmtPct(v/total)}</span></li>`
   ).join('');
   document.getElementById('countryTableFull').innerHTML = buildFullTable(map, total);
   document.getElementById('countrySub').textContent = `${entries.length} countries · ${fmt(total)} active contractors` + (rec.countryReconciles ? '' : ' ⚠');
@@ -1016,11 +1044,11 @@ function renderAnalytics(c, dashboard, rec) {
   const clientTotal = rec.activeFromMaster - rec.excludedClientActive;
   const total = rec.activeFromMaster;
   const tiles = [
-    { label:'Top Client Concentration', value: topClient ? fmtPct(topClient[1]/clientTotal) : '—', foot: topClient ? topClient[0] + ' · ' + fmt(topClient[1]) + ' of ' + fmt(clientTotal) + ' active contractors' : 'No data available' },
-    { label:'Top Country Concentration', value: topCountry ? fmtPct(topCountry[1]/total) : '—', foot: topCountry ? topCountry[0] + ' · ' + fmt(topCountry[1]) + ' of ' + fmt(total) + ' active contractors' : 'No data available' },
+    { label:'Top Client Concentration', value: topClient ? fmtPct(topClient[1]/clientTotal) : '—', foot: topClient ? escapeHtml(topClient[0]) + ' · ' + fmt(topClient[1]) + ' of ' + fmt(clientTotal) + ' active contractors' : 'No data available' },
+    { label:'Top Country Concentration', value: topCountry ? fmtPct(topCountry[1]/total) : '—', foot: topCountry ? escapeHtml(topCountry[0]) + ' · ' + fmt(topCountry[1]) + ' of ' + fmt(total) + ' active contractors' : 'No data available' },
   ];
   document.getElementById('analyticsGrid').innerHTML = tiles.map(t =>
-    `<div class="stat-tile"><div class="label">${t.label}</div><div class="value">${t.value}</div><div class="foot">${t.foot}</div></div>`
+    `<div class="stat-tile"><div class="label">${escapeHtml(t.label)}</div><div class="value">${t.value}</div><div class="foot">${t.foot}</div></div>`
   ).join('');
 }
 
@@ -1075,14 +1103,14 @@ function exportCSV() {
   lines.push(`Status,Notice Period,${computed.noticePeriod}`);
   lines.push(`Status,Offboarded,${computed.offboarded}`);
   lines.push(`Status,Total Contractor Records,${computed.totalRecords}`);
-  Object.entries(clientMap).sort((a,b)=>b[1]-a[1]).forEach(([k,v]) => lines.push(`Active by Client,"${k.replace(/"/g,'""')}",${v}`));
-  Object.entries(countryMap).sort((a,b)=>b[1]-a[1]).forEach(([k,v]) => lines.push(`Active by Country,"${k.replace(/"/g,'""')}",${v}`));
-  Object.entries(computed.roleCounts||{}).sort((a,b)=>b[1]-a[1]).forEach(([k,v]) => lines.push(`Historical Hires by Role,"${k.replace(/"/g,'""')}",${v}`));
+  Object.entries(clientMap).sort((a,b)=>b[1]-a[1]).forEach(([k,v]) => lines.push(`Active by Client,"${csvSafeCell(k)}",${v}`));
+  Object.entries(countryMap).sort((a,b)=>b[1]-a[1]).forEach(([k,v]) => lines.push(`Active by Country,"${csvSafeCell(k)}",${v}`));
+  Object.entries(computed.roleCounts||{}).sort((a,b)=>b[1]-a[1]).forEach(([k,v]) => lines.push(`Historical Hires by Role,"${csvSafeCell(k)}",${v}`));
   if (computed.missingRole) lines.push(`Historical Hires by Role,(no role recorded — excluded),${computed.missingRole}`);
   MONTH_LABELS.slice(0, monthsElapsedIn2026()).forEach((lbl,i) => lines.push(`Hires by Month,${lbl} 2026,${computed.hiresByMonth2026[i+1]||0}`));
   MONTH_LABELS.slice(0, monthsElapsedIn2026()).forEach((lbl,i) => lines.push(`Offboardings by Month,${lbl} 2026,${computed.offboardingsByMonth2026[i+1]||0}`));
   if (computed.hiresMeta && computed.hiresMeta.source === 'forms' && computed.hiresMeta.duplicateDetail.length) {
-    computed.hiresMeta.duplicateDetail.forEach(d => lines.push(`Hires - Repeat Form Submission (counted once),"${d.name.replace(/"/g,'""')}",${d.submissions}`));
+    computed.hiresMeta.duplicateDetail.forEach(d => lines.push(`Hires - Repeat Form Submission (counted once),"${csvSafeCell(d.name)}",${d.submissions}`));
   }
   const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
   const a = document.createElement('a');
