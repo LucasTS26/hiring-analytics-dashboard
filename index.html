@@ -681,7 +681,19 @@ function loadGvizSheet(sheetName) {
     window.google.visualization = window.google.visualization || {};
     window.google.visualization.Query = window.google.visualization.Query || {};
     let done = false;
-    window.google.visualization.Query.setResponse = function(data) { done = true; resolve(data.table); };
+    window.google.visualization.Query.setResponse = function(data) {
+      done = true;
+      // Google's JSONP callback fires on both success AND failure (e.g. the sheet no longer being
+      // shared "Anyone with the link"). An error-shaped response has no .table, so without this
+      // check the caller would crash later with a confusing "Cannot read properties of undefined
+      // (reading 'cols')" instead of a message that actually explains what happened.
+      if (data.status === 'error') {
+        const reason = (data.errors && data.errors[0] && data.errors[0].detailed_message) || (data.errors && data.errors[0] && data.errors[0].message) || 'access denied';
+        reject(new Error('"' + sheetName + '" — ' + reason));
+      } else {
+        resolve(data.table);
+      }
+    };
     const script = document.createElement('script');
     const url = 'https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID + '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(sheetName) + '&_=' + Date.now();
     script.src = url;
@@ -699,7 +711,15 @@ function loadGvizSheetByGid(gid) {
     window.google.visualization = window.google.visualization || {};
     window.google.visualization.Query = window.google.visualization.Query || {};
     let done = false;
-    window.google.visualization.Query.setResponse = function(data) { done = true; resolve(data.table); };
+    window.google.visualization.Query.setResponse = function(data) {
+      done = true;
+      if (data.status === 'error') {
+        const reason = (data.errors && data.errors[0] && data.errors[0].detailed_message) || (data.errors && data.errors[0] && data.errors[0].message) || 'access denied';
+        reject(new Error('candidate tab (gid ' + gid + ') — ' + reason));
+      } else {
+        resolve(data.table);
+      }
+    };
     const script = document.createElement('script');
     const url = 'https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID + '/gviz/tq?tqx=out:json&gid=' + encodeURIComponent(gid) + '&_=' + Date.now();
     script.src = url;
