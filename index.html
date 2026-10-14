@@ -474,6 +474,9 @@ function computeFromMasterHire(table) {
     startDate: colIndex(cols,'Start Date'), endDate: colIndex(cols,'End Date'),
     role: colIndex(cols,'Title'),
   };
+  // Personal Email is optional here (not part of missingCols): it's only used to recognize a
+  // genuine re-hire with a new client in the Hires Timeline (see computeHiresFromCandidateForms).
+  const emailIdx = colIndex(cols,'Personal Email');
   const missingCols = Object.entries(idx).filter(([k,v]) => v === -1).map(([k]) => k);
   const records = [];
   for (const row of table.rows) {
@@ -490,7 +493,16 @@ function computeFromMasterHire(table) {
       startDate: parseGvizDate(startCell),
       endDateRaw: !!(endCell && endCell.v !== null && endCell.v !== undefined && endCell.v !== ''),
       endDate: parseGvizDate(endCell),
+      email: emailIdx === -1 ? null : (cellStr(c[emailIdx]) || '').trim().toLowerCase() || null,
     });
+  }
+  // Engagements per contractor email (one entry per distinct client), used only by the Hires Timeline.
+  const engagementsByEmail = {};
+  for (const r of records) {
+    if (!r.email) continue;
+    const key = (r.company || '').trim().toLowerCase();
+    const list = engagementsByEmail[r.email] = engagementsByEmail[r.email] || [];
+    if (!list.some(e => e.key === key)) list.push({ key, company: r.company, status: r.status });
   }
   const statusCounts = {}; const unexpectedStatuses = {};
   for (const r of records) {
@@ -545,7 +557,7 @@ function computeFromMasterHire(table) {
   }
 
   return { totalRecords, active, onboarding, noticePeriod, offboarded, statusCounts, unexpectedStatuses,
-    missingCols, duplicateHireIds, byClientActive, byCountryActive, roleCounts, missingRole,
+    missingCols, duplicateHireIds, byClientActive, byCountryActive, roleCounts, missingRole, engagementsByEmail,
     currentPopulationSize: current.length, missingCountryCurrent, missingClientCurrent,
     hiresByMonth2026, offboardingsByMonth2026, missingEndDateOffboarded, missingStartDateAny,
     malformedStartDates, malformedEndDates };
@@ -577,42 +589,66 @@ function parseCandidateFormTab(table) {
   return { rows, skippedTest, skippedMissing, skippedBadDate };
 }
 
-// Hires by Month, from candidate onboarding-form timestamps rather than Master Hire's Start Date
-// (per Lucas's request). Each candidate (by email) counts as ONE hire, in the month of their
-// EARLIEST form timestamp across both tabs — this handles two real situations found in the
-// source data: (1) a candidate resubmitting the same form (e.g. to fix a typo) shouldn't count
-// twice, and (2) recent candidates who appear in BOTH the older tab's copied history and the
-// newer ongoing form (the newer form looks like a continuation of the same onboarding flow
-// during the transition, not a second hire event). Every collapsed duplicate is counted and
-// surfaced in the chart's subtitle — never silently absorbed.
-function computeHiresFromCandidateForms(olderTable, newerTable) {
+// Hires by Month, from candidate onboarding-form timestamps rather than Master Hire's Start Date.
+// The onboarding form is the source of truth for the hire date (confirmed by Lucas 2026-10-14):
+// a hire counts in the month the candidate submitted the form / accepted the offer.
+//
+// Counting rule per candidate (matched by personal email across both form tabs):
+//  - Submissions within REHIRE_GAP_DAYS of the previous one are the same onboarding (typo fixes,
+//    or the same person appearing in both the older and newer form tabs) → counted ONCE, at the
+//    earliest date of that group.
+//  - A later submission after a longer gap is a separate onboarding. It counts as a NEW HIRE when
+//    Master Hire shows that contractor with at least as many different clients as there are
+//    separate onboardings (e.g. offboarded from SCI, then placed at GreatWater Garages; or a
+//    second, concurrent client). Approved rule from Lucas 2026-10-14.
+//  - If there are more separate onboardings than clients in Master Hire, the extra ones are NOT
+//    counted (only the first is) and they are listed as "needs review" — never guessed.
+// Every collapse, re-hire and review case is surfaced in the subtitle / banner / CSV.
+const REHIRE_GAP_DAYS = 30;
+function computeHiresFromCandidateForms(olderTable, newerTable, engagementsByEmail) {
   const older = parseCandidateFormTab(olderTable);
   const newer = parseCandidateFormTab(newerTable);
   const byEmail = new Map();
-  function ingest(rows) {
-    for (const r of rows) {
-      const existing = byEmail.get(r.email);
-      if (!existing) { byEmail.set(r.email, { name: r.name, email: r.email, date: r.date, count: 1 }); continue; }
-      existing.count++;
-      if (r.date.sortKey < existing.date.sortKey) { existing.date = r.date; existing.name = r.name; }
-    }
+  for (const r of older.rows.concat(newer.rows)) {
+    if (!byEmail.has(r.email)) byEmail.set(r.email, []);
+    byEmail.get(r.email).push(r);
   }
-  ingest(older.rows); ingest(newer.rows);
+  const dayNum = d => Date.UTC(d.y, d.m - 1, d.d || 1) / 86400000;
 
   const hiresByMonth2026 = {};
   for (let m = 1; m <= 12; m++) hiresByMonth2026[m] = 0;
-  let duplicateSubmissions = 0;
-  const duplicateDetail = [];
-  for (const rec of byEmail.values()) {
-    if (rec.count > 1) { duplicateSubmissions += rec.count - 1; duplicateDetail.push({ name: rec.name, email: rec.email, submissions: rec.count }); }
-    if (rec.date.y === 2026) hiresByMonth2026[rec.date.m]++;
+  let duplicateSubmissions = 0, hiresCounted = 0;
+  const duplicateDetail = [], rehireDetail = [], reviewDetail = [];
+  for (const [email, subs] of byEmail) {
+    subs.sort((a, b) => a.date.sortKey - b.date.sortKey);
+    const episodes = [[subs[0]]];
+    for (let i = 1; i < subs.length; i++) {
+      const prev = episodes[episodes.length - 1];
+      if (dayNum(subs[i].date) - dayNum(prev[prev.length - 1].date) > REHIRE_GAP_DAYS) episodes.push([subs[i]]);
+      else prev.push(subs[i]);
+    }
+    const clients = (engagementsByEmail && engagementsByEmail[email]) || [];
+    const confirmed = episodes.length === 1 || clients.length >= episodes.length;
+    const counted = confirmed ? episodes : [episodes[0]];
+    const name = subs[0].name;
+    const collapsed = counted.reduce((n, ep) => n + ep.length - 1, 0);
+    if (collapsed) { duplicateSubmissions += collapsed; duplicateDetail.push({ name, email, submissions: counted.reduce((n, ep) => n + ep.length, 0) }); }
+    if (episodes.length > 1 && confirmed) rehireDetail.push({ name, email, hires: episodes.length, clients: clients.map(c => c.company), dates: episodes.map(ep => ep[0].date) });
+    if (!confirmed) reviewDetail.push({ name, email, onboardings: episodes.length, clients: clients.map(c => c.company), dates: episodes.map(ep => ep[0].date) });
+    for (const ep of counted) {
+      hiresCounted++;
+      if (ep[0].date.y === 2026) hiresByMonth2026[ep[0].date.m]++;
+    }
   }
   return {
     source: 'forms',
     hiresByMonth2026,
     totalDistinctCandidates: byEmail.size,
+    hiresCounted,
     duplicateSubmissions,
     duplicateDetail,
+    rehireDetail,
+    reviewDetail,
     skippedTestRows: older.skippedTest + newer.skippedTest,
     skippedMissingFields: older.skippedMissing + newer.skippedMissing,
     skippedBadDates: older.skippedBadDate + newer.skippedBadDate,
@@ -1099,9 +1135,11 @@ function renderTrends(c) {
   if (hm && hm.source === 'forms') {
     if (hm.skippedMissingFields) problems.push(`${hm.skippedMissingFields} candidate form row(s) are missing a name or email and are excluded from Hires`);
     if (hm.skippedBadDates) problems.push(`${hm.skippedBadDates} candidate form row(s) have an unrecognized timestamp and are excluded from Hires`);
+    if (hm.reviewDetail && hm.reviewDetail.length) problems.push(`needs review: ${hm.reviewDetail.map(r => `${r.name} submitted the onboarding form on ${r.onboardings} separate occasions but Master Hire shows ${r.clients.length} client(s) — counted once`).join('; ')}`);
   }
   let sub = `${fmt(totalHires)} hires (candidate onboarding-form timestamps) · ${fmt(totalOffs)} offboardings (Master Hire's End Date) recorded in 2026`;
   if (hm && hm.source === 'forms' && hm.duplicateSubmissions) sub += ` — ${fmt(hm.duplicateSubmissions)} repeat form submission(s) counted once (earliest date used)`;
+  if (hm && hm.source === 'forms' && hm.rehireDetail && hm.rehireDetail.length) sub += ` — ${fmt(hm.rehireDetail.length)} contractor(s) re-hired for a new client counted as new hires (${hm.rehireDetail.map(r => r.name).join(', ')})`;
   if (problems.length) sub += ' — ⚠ ' + problems.join('; ');
   document.getElementById('trendsSub').textContent = sub;
 
@@ -1195,6 +1233,8 @@ function exportCSV() {
   MONTH_LABELS.slice(0, monthsElapsedIn2026()).forEach((lbl,i) => lines.push(`Offboardings by Month,${lbl} 2026,${computed.offboardingsByMonth2026[i+1]||0}`));
   if (computed.hiresMeta && computed.hiresMeta.source === 'forms' && computed.hiresMeta.duplicateDetail.length) {
     computed.hiresMeta.duplicateDetail.forEach(d => lines.push(`Hires - Repeat Form Submission (counted once),"${csvSafeCell(d.name)}",${d.submissions}`));
+    (computed.hiresMeta.rehireDetail||[]).forEach(d => lines.push(`Hires - Re-hired for a New Client (counted per client),"${csvSafeCell(d.name)}",${d.hires}`));
+    (computed.hiresMeta.reviewDetail||[]).forEach(d => lines.push(`Hires - Needs Review (counted once),"${csvSafeCell(d.name)}",${d.onboardings}`));
   }
   const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
   const a = document.createElement('a');
@@ -1226,7 +1266,7 @@ async function refresh() {
       // way — one full fetch completes before the next begins.
       const olderCandTable = await loadGvizSheet(OLDER_CANDIDATES_TAB);
       const newerCandTable = await loadGvizSheetByGid(NEWER_CANDIDATES_GID);
-      const formHires = computeHiresFromCandidateForms(olderCandTable, newerCandTable);
+      const formHires = computeHiresFromCandidateForms(olderCandTable, newerCandTable, computed.engagementsByEmail);
       computed.hiresByMonth2026 = formHires.hiresByMonth2026;
       computed.hiresMeta = formHires;
     } catch (err) {
