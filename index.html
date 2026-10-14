@@ -590,6 +590,8 @@ function parseCandidateFormTab(table) {
 }
 
 // Hires by Month, from candidate onboarding-form timestamps rather than Master Hire's Start Date.
+// Source of truth: the "Candidate Personal Details" tab (gid 1480202336). History before that form
+// existed comes from the older tab (see the cutover rule inside the function).
 // The onboarding form is the source of truth for the hire date (confirmed by Lucas 2026-10-14):
 // a hire counts in the month the candidate submitted the form / accepted the offer.
 //
@@ -608,8 +610,14 @@ const REHIRE_GAP_DAYS = 30;
 function computeHiresFromCandidateForms(olderTable, newerTable, engagementsByEmail) {
   const older = parseCandidateFormTab(olderTable);
   const newer = parseCandidateFormTab(newerTable);
+  // "Candidate Personal Details" is the source of truth for hire dates (Lucas, 2026-10-14). The
+  // older tab is used ONLY for history before the new form existed: older-tab rows dated on/after
+  // the first Candidate Personal Details submission (the cutover, 2026-07-11) are ignored.
+  const cutover = newer.rows.length ? newer.rows.reduce((m, r) => r.date.sortKey < m.date.sortKey ? r : m).date : null;
+  const olderBeforeCutover = cutover ? older.rows.filter(r => r.date.sortKey < cutover.sortKey) : older.rows;
+  const ignoredAfterCutover = older.rows.length - olderBeforeCutover.length;
   const byEmail = new Map();
-  for (const r of older.rows.concat(newer.rows)) {
+  for (const r of olderBeforeCutover.concat(newer.rows)) {
     if (!byEmail.has(r.email)) byEmail.set(r.email, []);
     byEmail.get(r.email).push(r);
   }
@@ -645,6 +653,8 @@ function computeHiresFromCandidateForms(olderTable, newerTable, engagementsByEma
     hiresByMonth2026,
     totalDistinctCandidates: byEmail.size,
     hiresCounted,
+    cutover,
+    ignoredAfterCutover,
     duplicateSubmissions,
     duplicateDetail,
     rehireDetail,
@@ -1093,7 +1103,8 @@ function renderCountries(c, dashboard, rec) {
 function renderTrends(c) {
   const monthsElapsed = monthsElapsedIn2026();
   const labels = MONTH_LABELS.slice(0, monthsElapsed);
-  const hires = labels.map((_, i) => c.hiresByMonth2026[i+1] || 0);
+  const hiresAvailable = !!c.hiresByMonth2026;
+  const hires = labels.map((_, i) => hiresAvailable ? (c.hiresByMonth2026[i+1] || 0) : null);
   const offs = labels.map((_, i) => c.offboardingsByMonth2026[i+1] || 0);
   const indigo = getComputedStyle(document.documentElement).getPropertyValue('--indigo').trim();
   const rose = getComputedStyle(document.documentElement).getPropertyValue('--rose').trim();
@@ -1109,7 +1120,7 @@ function renderTrends(c) {
     },
     options: {
       interaction: { mode: 'index', intersect: false },
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + fmt(ctx.raw) } } },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + (ctx.raw === null ? 'not available' : fmt(ctx.raw)) } } },
       scales: {
         x: { ticks: { color: muted, font: { size: 12 } }, grid: { display: false } },
         y: { beginAtZero: true, ticks: { color: muted, precision: 0 }, grid: { color: '#eef0f5' } },
@@ -1122,22 +1133,22 @@ function renderTrends(c) {
     `<span class="item"><span class="sw" style="background:${rose}"></span>Offboardings</span>`;
   document.getElementById('trendsTableFull').innerHTML =
     '<thead><tr><th>Month</th><th class="num">Hires</th><th class="num">Offboardings</th></tr></thead><tbody>' +
-    labels.map((lbl, i) => `<tr><td>${lbl} 2026</td><td class="num">${fmt(hires[i])}</td><td class="num">${fmt(offs[i])}</td></tr>`).join('') +
+    labels.map((lbl, i) => `<tr><td>${lbl} 2026</td><td class="num">${hires[i] === null ? '—' : fmt(hires[i])}</td><td class="num">${fmt(offs[i])}</td></tr>`).join('') +
     '</tbody>';
 
-  const totalHires = hires.reduce((a,b)=>a+b,0);
+  const totalHires = hires.reduce((a,b)=>a+(b||0),0);
   const totalOffs = offs.reduce((a,b)=>a+b,0);
   const problems = [];
   if (c.missingEndDateOffboarded.length) problems.push(`${c.missingEndDateOffboarded.length} Offboarded record(s) have no recorded End Date and are excluded from Offboardings`);
   if (c.malformedEndDates.length) problems.push(`${c.malformedEndDates.length} record(s) have an unrecognized End Date value`);
   const hm = c.hiresMeta;
-  if (hm && hm.source === 'masterHireFallback') problems.push(hm.note);
+  if (hm && (hm.source === 'unavailable' || hm.source === 'masterHireFallback')) problems.push(hm.note);
   if (hm && hm.source === 'forms') {
     if (hm.skippedMissingFields) problems.push(`${hm.skippedMissingFields} candidate form row(s) are missing a name or email and are excluded from Hires`);
     if (hm.skippedBadDates) problems.push(`${hm.skippedBadDates} candidate form row(s) have an unrecognized timestamp and are excluded from Hires`);
     if (hm.reviewDetail && hm.reviewDetail.length) problems.push(`needs review: ${hm.reviewDetail.map(r => `${r.name} submitted the onboarding form on ${r.onboardings} separate occasions but Master Hire shows ${r.clients.length} client(s) — counted once`).join('; ')}`);
   }
-  let sub = `${fmt(totalHires)} hires (candidate onboarding-form timestamps) · ${fmt(totalOffs)} offboardings (Master Hire's End Date) recorded in 2026`;
+  let sub = (hiresAvailable ? `${fmt(totalHires)} hires (onboarding-form timestamps — Candidate Personal Details${hm && hm.cutover ? `; earlier history from the older form tab before ${MONTH_LABELS[hm.cutover.m-1]} ${hm.cutover.d}, ${hm.cutover.y}` : ''})` : 'Hires not available') + ` · ${fmt(totalOffs)} offboardings (Master Hire's End Date) recorded in 2026`;
   if (hm && hm.source === 'forms' && hm.duplicateSubmissions) sub += ` — ${fmt(hm.duplicateSubmissions)} repeat form submission(s) counted once (earliest date used)`;
   if (hm && hm.source === 'forms' && hm.rehireDetail && hm.rehireDetail.length) sub += ` — ${fmt(hm.rehireDetail.length)} contractor(s) re-hired for a new client counted as new hires (${hm.rehireDetail.map(r => r.name).join(', ')})`;
   if (problems.length) sub += ' — ⚠ ' + problems.join('; ');
@@ -1184,6 +1195,7 @@ function renderReconcileWarning(c, rec, isLive) {
     const desc = unexpectedEntries.map(([status, n]) => `"${status}" (${n})`).join(', ');
     problems.push(`${unexpectedEntries.reduce((s,[,n])=>s+n,0)} record(s) have a Contractor Status not recognized as Active/Onboarding/Notice Period/Offboarded — ${desc} — shown as its own status in the "Headcount by Status" chart below, but excluded from the KPI cards above until corrected in Column L`);
   }
+  if (c.hiresMeta && c.hiresMeta.source === 'unavailable') problems.push(c.hiresMeta.note);
   const unmappedRoles = classifyRoles(c.roleCounts).unmapped;
   const unmappedList = Object.entries(unmappedRoles);
   if (unmappedList.length) problems.push(`${unmappedList.reduce((s,[,n])=>s+n,0)} hire(s) have a Title / Role not yet assigned to a core role — ${unmappedList.map(([t,n]) => `"${t}" (${n})`).join(', ')} — shown as "Unmapped" in Top Roles Hired until added to the dashboard's role list`);
@@ -1229,7 +1241,8 @@ function exportCSV() {
   if (computed.missingRole) lines.push(`Historical Hires by Core Role,(no role recorded — excluded),${computed.missingRole}`);
   roleCls.ranked.forEach(([k]) => (roleCls.titlesByCore[k]||[]).forEach(([t,n]) => lines.push(`Job Title in Core Role: ${csvSafeCell(k)},"${csvSafeCell(t)}",${n}`)));
   Object.entries(roleCls.unmapped).forEach(([t,n]) => lines.push(`Job Title in Core Role: ${UNMAPPED_ROLE},"${csvSafeCell(t)}",${n}`));
-  MONTH_LABELS.slice(0, monthsElapsedIn2026()).forEach((lbl,i) => lines.push(`Hires by Month,${lbl} 2026,${computed.hiresByMonth2026[i+1]||0}`));
+  if (computed.hiresByMonth2026) MONTH_LABELS.slice(0, monthsElapsedIn2026()).forEach((lbl,i) => lines.push(`Hires by Month,${lbl} 2026,${computed.hiresByMonth2026[i+1]||0}`));
+  else lines.push('Hires by Month,(not available — onboarding-form tab could not be loaded),');
   MONTH_LABELS.slice(0, monthsElapsedIn2026()).forEach((lbl,i) => lines.push(`Offboardings by Month,${lbl} 2026,${computed.offboardingsByMonth2026[i+1]||0}`));
   if (computed.hiresMeta && computed.hiresMeta.source === 'forms' && computed.hiresMeta.duplicateDetail.length) {
     computed.hiresMeta.duplicateDetail.forEach(d => lines.push(`Hires - Repeat Form Submission (counted once),"${csvSafeCell(d.name)}",${d.submissions}`));
@@ -1264,13 +1277,23 @@ async function refresh() {
       // the first response arrives, so one fetch resolves to the wrong data (or never resolves at
       // all, hanging until the 12s timeout). Master Hire and Dashboard above avoid this the same
       // way — one full fetch completes before the next begins.
-      const olderCandTable = await loadGvizSheet(OLDER_CANDIDATES_TAB);
-      const newerCandTable = await loadGvizSheetByGid(NEWER_CANDIDATES_GID);
+      // One retry: a slow/failed load must not change how hires are counted.
+      let olderCandTable, newerCandTable;
+      for (let attempt = 1; ; attempt++) {
+        try {
+          olderCandTable = await loadGvizSheet(OLDER_CANDIDATES_TAB);
+          newerCandTable = await loadGvizSheetByGid(NEWER_CANDIDATES_GID);
+          break;
+        } catch (e) { if (attempt >= 2) throw e; }
+      }
       const formHires = computeHiresFromCandidateForms(olderCandTable, newerCandTable, computed.engagementsByEmail);
       computed.hiresByMonth2026 = formHires.hiresByMonth2026;
       computed.hiresMeta = formHires;
     } catch (err) {
-      computed.hiresMeta = { source: 'masterHireFallback', note: 'Could not reach the candidate onboarding-form tabs (' + err.message + ') — showing Hires from Master Hire’s Start Date instead.' };
+      // No fallback to Master Hire's Start Date: the onboarding form is the only approved source for
+      // hire dates (Lucas, 2026-10-14). If it can't be loaded, the Hires line is left empty and flagged.
+      computed.hiresByMonth2026 = null;
+      computed.hiresMeta = { source: 'unavailable', note: 'Hires could not be loaded: the Candidate Personal Details onboarding-form tab did not respond (' + err.message + '). Hires are not shown rather than counted a different way — click "Refresh now" to try again' };
     }
 
     const rec = reconcile(computed, dashboard);
