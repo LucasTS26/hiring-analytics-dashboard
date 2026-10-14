@@ -242,6 +242,8 @@
   #gateOverlay button:hover { background: var(--accent-dark); }
   #gateOverlay .err { color: var(--rose); font-size: 12.5px; margin-top: 10px; min-height: 15px; }
   .app.gated { display: none; }
+.role-titles{font-size:11.5px;color:var(--text-muted);margin-top:3px;line-height:1.4;font-weight:400}
+tr.unmapped td{background:#fff8eb}
 </style>
 </head>
 <body>
@@ -360,11 +362,11 @@
     <div class="row2" id="rolesAnchor" style="grid-template-columns: 1fr;">
       <section class="panel">
         <div class="panel-head">
-          <div><h2>Top 10 Roles Hired</h2><div class="panel-sub" id="rolesSub"></div></div>
+          <div><h2 id="rolesTitle">Top 10 Roles Hired</h2><div class="panel-sub" id="rolesSub"></div></div>
           <button class="viewall" id="rolesViewAllBtn">View all</button>
         </div>
         <div style="height:320px" id="rolesChartBox"><canvas id="rolesChart"></canvas></div>
-        <details class="morerows" id="rolesMoreWrap"><summary>Full role list</summary><table class="data" id="rolesTableFull"></table></details>
+        <details class="morerows" id="rolesMoreWrap"><summary>Full role list (with the job titles in each role)</summary><table class="data" id="rolesTableFull"></table></details>
       </section>
     </div>
 
@@ -914,22 +916,85 @@ function renderClients(c, dashboard, rec) {
   if (summary) summary.style.display = ok ? '' : 'none';
 }
 
-// Top 10 Roles Hired: every historical Master Hire record (any status), ranked by Title/Role.
+// ---------- Core-role classification (dashboard layer only — the Hiring Hub is never changed) ----------
+// Approved by Mike Bodkin and Josh Goldberg (Role Classification Proposal comments, Oct 2026) and
+// confirmed by Lucas on 2026-10-14. Each exact Title / Role text in Master Hire maps to one core role.
+// Seniority and specialty tags are ignored on purpose. Matching normalizes only case, spacing and
+// dash style (so "Project Manager – Creative" and "project manager - creative" match the same entry);
+// the source text itself is never edited. A title not listed here is NEVER guessed into a role — it is
+// counted in a visible "Unmapped" bucket and named in the warning banner until it is added below.
+const CORE_ROLE_MAP = {
+  'Project & Operations Manager': ['Project Manager','PM - Client Services','Project Manager (Creative Operations)','Project Manager – Creative','Project and Operations Manager','Operations & Implementation Specialist','Planning & Operations Manager','Resourcing and Ops Coordinator','Director - Creative Operations','Payroll & HR Operations Manager'],
+  'Paid Media & Performance Marketing': ['Paid Media Manager','Paid Media Specialist','Senior Paid Media Specialist','Paid Search Analyst','Paid Search & Social Analyst','Paid Recruitment Marketing Specialist','Performance Marketer','Sr. Performance Marketing Manager','Growth Lead (Head of Growth)'],
+  'Graphic Designer': ['Graphic Designer','Designer','Social Content Designer','Motion Graphic Designer'],
+  'Social Media': ['Social Media Manager','Social Media Assistant','Social Content Creator'],
+  'Executive & Operations Assistant': ['Executive Assistant','Operations Assistant'],
+  'Digital Marketing': ['Digital Marketing Manager','Digital Marketing Advisor','Digital Marketing Advisor (Content & SEO Focus)'],
+  'Data & Analytics': ['Marketing Analytics Manager','Pricing Analyst','Website CRO Specialist','CRO Account Strategist'],
+  'Account Manager': ['Account Manager','Client Success Manager'],
+  'Developer / Engineer': ['Java Developer','Senior Shopify Web Developer','Product Quality Engineer'],
+  'CRM / Marketing Ops': ['CRM Specialist','HubSpot Specialist','Marketing Operations Manager'],
+  'Customer Experience': ['Customer experience agent','Customer Experience Manager'],
+  'Sales': ['Engagement Coordinator','Outreach Engagement Coordinator'],
+  'SEO / AEO': ['SEO Manager','Sr Local SEO Specialist'],
+  'eCommerce': ['Director of eCommerce','eCommerce Strategist'],
+  'Video Editor': ['Senior Video Editor','Senior Editor/Designer'],
+  'UI/UX Designer': ['UI/UX Designer'],
+};
+const UNMAPPED_ROLE = 'Unmapped';
+function normalizeRoleKey(t) {
+  return String(t).normalize('NFKC').replace(/[‒-―−]/g, '-').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+const CORE_ROLE_LOOKUP = (() => {
+  const m = {};
+  Object.entries(CORE_ROLE_MAP).forEach(([core, titles]) => titles.forEach(t => { m[normalizeRoleKey(t)] = core; }));
+  return m;
+})();
+// Builds core-role totals from the exact-title counts (c.roleCounts). Returns ranked core roles,
+// the source titles inside each, and any unmapped titles (kept separate, never folded in).
+function classifyRoles(roleCounts) {
+  const core = {}; const titlesByCore = {}; const unmapped = {};
+  Object.entries(roleCounts || {}).forEach(([title, n]) => {
+    const k = CORE_ROLE_LOOKUP[normalizeRoleKey(title)];
+    if (!k) { unmapped[title] = (unmapped[title]||0) + n; return; }
+    core[k] = (core[k]||0) + n;
+    (titlesByCore[k] = titlesByCore[k] || []).push([title, n]);
+  });
+  Object.values(titlesByCore).forEach(list => list.sort((a,b)=>b[1]-a[1] || a[0].localeCompare(b[0])));
+  const ranked = Object.entries(core).sort((a,b)=>b[1]-a[1] || a[0].localeCompare(b[0]));
+  const unmappedTotal = Object.values(unmapped).reduce((s,v)=>s+v, 0);
+  return { ranked, titlesByCore, unmapped, unmappedTotal };
+}
+// Top roles with ties kept together: show the top 10, but if roles are tied with the 10th place,
+// include all of them (e.g. a "Top 11") instead of cutting one off arbitrarily. Confirmed by Lucas 2026-10-14.
+function topWithTies(ranked, n) {
+  if (ranked.length <= n) return ranked;
+  const cutoff = ranked[n-1][1];
+  return ranked.filter(([,v]) => v >= cutoff);
+}
+
+// Top Roles Hired: every historical Master Hire record (any status), grouped by core role.
 // Sorted descending and passed to Chart.js in that order — same convention as the Contractors by
 // Client horizontal bar above — so the most-hired role renders at the top, least at the bottom.
 function renderTopRoles(c) {
-  const map = c.roleCounts || {};
-  const entries = Object.entries(map).sort((a,b)=>b[1]-a[1]);
-  const totalTagged = entries.reduce((s,[,v])=>s+v, 0);
-  const top = entries.slice(0, 10);
+  const cls = classifyRoles(c.roleCounts);
+  const entries = cls.ranked;
+  const totalMapped = entries.reduce((s,[,v])=>s+v, 0);
+  const totalTagged = totalMapped + cls.unmappedTotal;
+  const top = topWithTies(entries, 10);
+  document.getElementById('rolesTitle').textContent = `Top ${top.length} Roles Hired`;
   const accent = getComputedStyle(document.documentElement).getPropertyValue('--indigo').trim();
   const muted = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim();
+  document.getElementById('rolesChartBox').style.height = Math.max(320, top.length * 32) + 'px';
   const ok = mountChart('roles', 'rolesChart', {
     type: 'bar',
     data: { labels: top.map(e=>e[0]), datasets: [{ data: top.map(e=>e[1]), backgroundColor: accent, borderRadius: 5, maxBarThickness: 22 }] },
     options: {
       indexAxis: 'y',
-      plugins: { legend:{display:false}, tooltip:{ callbacks: { label: ctx => fmt(ctx.raw) + ' hire' + (ctx.raw===1?'':'s') } } },
+      plugins: { legend:{display:false}, tooltip:{ callbacks: {
+        label: ctx => fmt(ctx.raw) + ' hire' + (ctx.raw===1?'':'s'),
+        afterLabel: ctx => (cls.titlesByCore[ctx.label]||[]).map(([t,n]) => `  ${t} (${n})`).join('\n'),
+      } } },
       scales: {
         x: { beginAtZero:true, ticks:{ color: muted, precision:0 }, grid:{ color: '#eef0f5' } },
         y: { reverse: false, ticks:{ color: '#171923', font:{size:12} }, grid:{ display:false } },
@@ -937,14 +1002,26 @@ function renderTopRoles(c) {
       responsive:true, maintainAspectRatio:false,
     }
   });
-  const rows = entries.map(([k,v],i) =>
-    `<tr><td><span class="rank">${i+1}</span>${escapeHtml(k)}</td><td class="num">${fmt(v)}</td><td class="num">${fmtPct(v/(totalTagged||1))}</td></tr>`
-  ).join('');
+  // Competition ranking: tied roles share a rank (1, 1, 3 ...).
+  let prevV = null, prevRank = 0;
+  const rows = entries.map(([k,v],i) => {
+    const rank = v === prevV ? prevRank : i + 1; prevV = v; prevRank = rank;
+    const titles = (cls.titlesByCore[k]||[]).map(([t,n]) => `${escapeHtml(t)} (${fmt(n)})`).join(' · ');
+    return `<tr><td><span class="rank">${rank}</span>${escapeHtml(k)}<div class="role-titles">${titles}</div></td><td class="num">${fmt(v)}</td><td class="num">${fmtPct(v/(totalTagged||1))}</td></tr>`;
+  });
+  if (cls.unmappedTotal) {
+    const titles = Object.entries(cls.unmapped).sort((a,b)=>b[1]-a[1]).map(([t,n]) => `${escapeHtml(t)} (${fmt(n)})`).join(' · ');
+    rows.push(`<tr class="unmapped"><td><span class="rank">—</span>⚠ ${UNMAPPED_ROLE} (new titles not yet classified)<div class="role-titles">${titles}</div></td><td class="num">${fmt(cls.unmappedTotal)}</td><td class="num">${fmtPct(cls.unmappedTotal/(totalTagged||1))}</td></tr>`);
+  }
   document.getElementById('rolesTableFull').innerHTML =
-    `<thead><tr><th>Role</th><th class="num">Hires</th><th class="num">% of tagged hires</th></tr></thead><tbody>${rows}</tbody>`;
-  const missingNote = c.missingRole ? ` — ⚠ ${fmt(c.missingRole)} record(s) have no recorded role and are excluded` : '';
+    `<thead><tr><th>Core role (titles included)</th><th class="num">Hires</th><th class="num">% of tagged hires</th></tr></thead><tbody>${rows.join('')}</tbody>`;
+  const notes = [];
+  if (cls.unmappedTotal) notes.push(`⚠ ${fmt(cls.unmappedTotal)} hire(s) with unclassified titles shown as "${UNMAPPED_ROLE}"`);
+  if (c.missingRole) notes.push(`⚠ ${fmt(c.missingRole)} record(s) have no recorded role and are excluded`);
   document.getElementById('rolesSub').textContent =
-    `${fmt(entries.length)} distinct roles · ${fmt(totalTagged)} total historical hires, all statuses (Master Hire's Title / Role column)${missingNote}`;
+    `${fmt(entries.length)} core roles (grouped from ${fmt(Object.keys(c.roleCounts||{}).length)} job titles) · ${fmt(totalTagged)} total historical hires, all statuses` +
+    (top.length > 10 ? ` · ${top.length} shown because of a tie for 10th place` : '') +
+    (notes.length ? ' — ' + notes.join(' — ') : '');
   // If the chart can't be built, drop the empty chart box and show the ranked list directly (no toggle, no error text) — same fallback pattern as the other ranked panels.
   const chartBox = document.getElementById('rolesChartBox');
   const moreWrap = document.getElementById('rolesMoreWrap');
@@ -1069,6 +1146,9 @@ function renderReconcileWarning(c, rec, isLive) {
     const desc = unexpectedEntries.map(([status, n]) => `"${status}" (${n})`).join(', ');
     problems.push(`${unexpectedEntries.reduce((s,[,n])=>s+n,0)} record(s) have a Contractor Status not recognized as Active/Onboarding/Notice Period/Offboarded — ${desc} — shown as its own status in the "Headcount by Status" chart below, but excluded from the KPI cards above until corrected in Column L`);
   }
+  const unmappedRoles = classifyRoles(c.roleCounts).unmapped;
+  const unmappedList = Object.entries(unmappedRoles);
+  if (unmappedList.length) problems.push(`${unmappedList.reduce((s,[,n])=>s+n,0)} hire(s) have a Title / Role not yet assigned to a core role — ${unmappedList.map(([t,n]) => `"${t}" (${n})`).join(', ')} — shown as "Unmapped" in Top Roles Hired until added to the dashboard's role list`);
   if (problems.length) {
     banner.style.display = 'block';
     banner.textContent = '⚠ Data discrepancy in the Hiring Hub — ' + problems.join('; ') + '. Nothing was changed in the source; figures above are shown as-is.';
@@ -1105,8 +1185,12 @@ function exportCSV() {
   lines.push(`Status,Total Contractor Records,${computed.totalRecords}`);
   Object.entries(clientMap).sort((a,b)=>b[1]-a[1]).forEach(([k,v]) => lines.push(`Active by Client,"${csvSafeCell(k)}",${v}`));
   Object.entries(countryMap).sort((a,b)=>b[1]-a[1]).forEach(([k,v]) => lines.push(`Active by Country,"${csvSafeCell(k)}",${v}`));
-  Object.entries(computed.roleCounts||{}).sort((a,b)=>b[1]-a[1]).forEach(([k,v]) => lines.push(`Historical Hires by Role,"${csvSafeCell(k)}",${v}`));
-  if (computed.missingRole) lines.push(`Historical Hires by Role,(no role recorded — excluded),${computed.missingRole}`);
+  const roleCls = classifyRoles(computed.roleCounts);
+  roleCls.ranked.forEach(([k,v]) => lines.push(`Historical Hires by Core Role,"${csvSafeCell(k)}",${v}`));
+  if (roleCls.unmappedTotal) lines.push(`Historical Hires by Core Role,${UNMAPPED_ROLE},${roleCls.unmappedTotal}`);
+  if (computed.missingRole) lines.push(`Historical Hires by Core Role,(no role recorded — excluded),${computed.missingRole}`);
+  roleCls.ranked.forEach(([k]) => (roleCls.titlesByCore[k]||[]).forEach(([t,n]) => lines.push(`Job Title in Core Role: ${csvSafeCell(k)},"${csvSafeCell(t)}",${n}`)));
+  Object.entries(roleCls.unmapped).forEach(([t,n]) => lines.push(`Job Title in Core Role: ${UNMAPPED_ROLE},"${csvSafeCell(t)}",${n}`));
   MONTH_LABELS.slice(0, monthsElapsedIn2026()).forEach((lbl,i) => lines.push(`Hires by Month,${lbl} 2026,${computed.hiresByMonth2026[i+1]||0}`));
   MONTH_LABELS.slice(0, monthsElapsedIn2026()).forEach((lbl,i) => lines.push(`Offboardings by Month,${lbl} 2026,${computed.offboardingsByMonth2026[i+1]||0}`));
   if (computed.hiresMeta && computed.hiresMeta.source === 'forms' && computed.hiresMeta.duplicateDetail.length) {
