@@ -455,6 +455,10 @@ function parseGvizTimestamp(cell) {
   return { y, m: mo, d, sortKey: y*1e10 + mo*1e8 + d*1e6 + h*1e4 + mi*1e2 + s };
 }
 const CURRENT_STATUSES = new Set(['Active','Onboarding','Notice Period']);
+// Lucas's decision (2026-11-07): Column L value "Notice" is counted as "Notice Period". The sheet is not
+// changed; the dashboard only groups the two labels and says how many records used "Notice".
+const STATUS_ALIASES = { 'Notice': 'Notice Period' };
+function canonicalStatus(s) { return Object.prototype.hasOwnProperty.call(STATUS_ALIASES, s) ? STATUS_ALIASES[s] : s; }
 const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 // How many months of 2026 have actually happened, per the viewer's own clock — future months
 // aren't shown since there's nothing recorded there yet (not zero-by-omission, just not reached).
@@ -504,9 +508,11 @@ function computeFromMasterHire(table) {
     const list = engagementsByEmail[r.email] = engagementsByEmail[r.email] || [];
     if (!list.some(e => e.key === key)) list.push({ key, company: r.company, status: r.status });
   }
-  const statusCounts = {}; const unexpectedStatuses = {};
+  const statusCounts = {}; const unexpectedStatuses = {}; const aliasedStatuses = {};
   for (const r of records) {
-    const s = r.status || '(blank)';
+    const raw = r.status || '(blank)';
+    const s = canonicalStatus(raw);
+    if (s !== raw) aliasedStatuses[raw] = (aliasedStatuses[raw]||0)+1;
     statusCounts[s] = (statusCounts[s]||0)+1;
     if (!['Active','Onboarding','Notice Period','Offboarded'].includes(s)) unexpectedStatuses[s] = (unexpectedStatuses[s]||0)+1;
   }
@@ -516,7 +522,7 @@ function computeFromMasterHire(table) {
   const hireIdCounts = {};
   for (const r of records) if (r.hireId) hireIdCounts[r.hireId]=(hireIdCounts[r.hireId]||0)+1;
   const duplicateHireIds = Object.entries(hireIdCounts).filter(([,n])=>n>1).map(([id])=>id);
-  const current = records.filter(r => CURRENT_STATUSES.has(r.status));
+  const current = records.filter(r => CURRENT_STATUSES.has(canonicalStatus(r.status)));
   const missingCountryCurrent = current.filter(r=>!r.country).map(r=>r.name);
   const missingClientCurrent = current.filter(r=>!r.company).map(r=>r.name);
   const activeRecords = records.filter(r=>r.status==='Active');
@@ -556,7 +562,7 @@ function computeFromMasterHire(table) {
     else missingRole++;
   }
 
-  return { totalRecords, active, onboarding, noticePeriod, offboarded, statusCounts, unexpectedStatuses,
+  return { totalRecords, active, onboarding, noticePeriod, offboarded, statusCounts, unexpectedStatuses, aliasedStatuses,
     missingCols, duplicateHireIds, byClientActive, byCountryActive, roleCounts, missingRole, engagementsByEmail,
     currentPopulationSize: current.length, missingCountryCurrent, missingClientCurrent,
     hiresByMonth2026, offboardingsByMonth2026, missingEndDateOffboarded, missingStartDateAny,
@@ -665,8 +671,22 @@ function computeHiresFromCandidateForms(olderTable, newerTable, engagementsByEma
   };
 }
 
+// Two Dashboard-tab rows can differ only by stray whitespace (e.g. "Brazil" and "Brazil "), because the
+// source formulas group on the exact text. cellStr() trims, so both rows land on the same key; they used to
+// OVERWRITE each other (Brazil 15 replaced by Brazil 1), losing contractors. They are now ADDED together and
+// every merged label is recorded in result.labelVariants so the warning banner discloses it. The source sheet
+// is not touched — this is presentation-layer grouping only.
+function rawStr(cell) { return cell && cell.v !== null && cell.v !== undefined ? String(cell.v) : null; }
+function addDashCount(map, key, val, raw, result, field) {
+  if (typeof val !== 'number') { map[key] = val; return; }
+  if (Object.prototype.hasOwnProperty.call(map, key) && typeof map[key] === 'number') {
+    map[key] += val;
+    result.labelVariants.push({ field, label: key, raw });
+  } else map[key] = val;
+}
+
 function parseDashboardTab(table) {
-  const result = { headcount:{}, clientActive:{}, statusLive:{}, countryActive:{} };
+  const result = { headcount:{}, clientActive:{}, statusLive:{}, countryActive:{}, labelVariants:[] };
   let leftSection = 'headcount', rightSection = 'statusLive';
   for (const row of table.rows) {
     const c = row.c;
@@ -678,12 +698,12 @@ function parseDashboardTab(table) {
     else if (aVal === 'Client') leftSection = 'client';
     else if (aVal && bVal !== null && bVal !== undefined) {
       if (leftSection==='headcount') result.headcount[aVal]=bVal;
-      else if (leftSection==='client') result.clientActive[aVal]=bVal;
+      else if (leftSection==='client') addDashCount(result.clientActive, aVal, bVal, rawStr(c[0]), result, 'Client');
     }
     if (dVal === 'Country') rightSection = 'countryActive';
     else if (dVal && eVal !== null && eVal !== undefined) {
       if (rightSection==='statusLive') result.statusLive[dVal]=eVal;
-      else if (rightSection==='countryActive') result.countryActive[dVal]=eVal;
+      else if (rightSection==='countryActive') addDashCount(result.countryActive, dVal, eVal, rawStr(c[3]), result, 'Country');
     }
   }
   return result;
@@ -713,6 +733,7 @@ function reconcile(computed, dashboard) {
     activeFromDashboardHeadcount: dashboard.headcount['Active'],
     activeFromStatusLive: dashboard.statusLive['Active'],
     sumClient, sumCountry, excludedClientActive,
+    labelVariants: dashboard.labelVariants || [],
     // The client breakdown intentionally omits EXCLUDED_CLIENTS, so it should reconcile against
     // Active minus however many of those excluded contractors are active — not the raw Active total.
     clientReconciles: sumClient === (activeFromMaster - excludedClientActive),
@@ -872,7 +893,7 @@ function renderKPIs(c) {
     { icon: ICONS.total, iconBg: 'var(--slate)', label:'Total Contractor Records', value: fmt(c.totalRecords), foot:'All-time roster', color: 'var(--text-primary)' },
     { icon: ICONS.active, iconBg: 'var(--good)', label:'Active Contractors', value: fmt(c.active), foot:'Currently engaged & working', color: 'var(--good)' },
     { icon: ICONS.onboarding, iconBg: 'var(--indigo)', label:'Contractors in Onboarding', value: fmt(c.onboarding), foot:'Recorded status: Onboarding', color: 'var(--indigo)' },
-    { icon: ICONS.notice, iconBg: 'var(--warn)', label:'Contractors in Notice Period', value: fmt(c.noticePeriod), foot:'Recorded status: Notice Period', color: 'var(--warn)' },
+    { icon: ICONS.notice, iconBg: 'var(--warn)', label:'Contractors in Notice Period', value: fmt(c.noticePeriod), foot: (c.aliasedStatuses && c.aliasedStatuses['Notice']) ? `Recorded status: Notice Period or Notice (${fmt(c.aliasedStatuses['Notice'])} recorded as "Notice")` : 'Recorded status: Notice Period', color: 'var(--warn)' },
     { icon: ICONS.offboarded, iconBg: 'var(--rose)', label:'Offboarded Contractors', value: fmt(c.offboarded), foot:'Historical — not current workforce', color: 'var(--rose)' },
   ];
   document.getElementById('kpiRow').innerHTML = cards.map(k =>
@@ -1183,6 +1204,7 @@ function renderReconcileWarning(c, rec, isLive) {
   const problems = [];
   if (!rec.clientReconciles) problems.push(`Active Contractors by Client sums to ${fmt(rec.sumClient)}, not ${fmt(rec.activeFromMaster - rec.excludedClientActive)} (Active minus the ${fmt(rec.excludedClientActive)} excluded direct Talent Scout engagement(s))`);
   if (!rec.countryReconciles) problems.push(`Active Contractors by Country sums to ${fmt(rec.sumCountry)}, not ${fmt(rec.activeFromMaster)}`);
+  if (rec.labelVariants && rec.labelVariants.length) problems.push(`the Dashboard tab lists ${rec.labelVariants.map(v => `${v.field.toLowerCase()} "${v.label}" twice (one copy has extra spaces: "${v.raw}")`).join(', ')} — the dashboard adds the two rows together; fix the spacing in Master Hire to merge them at the source`);
   if (!rec.headcountReconciles || !rec.statusLiveReconciles) problems.push(`the Dashboard tab's own Active count doesn't match Master Hire`);
   if (c.duplicateHireIds.length) problems.push(`${c.duplicateHireIds.length} duplicate Hire ID(s) found (${c.duplicateHireIds.join(', ')})`);
   if (c.missingCountryCurrent.length || c.missingClientCurrent.length) problems.push(`missing Country/Client on current contractor(s): ${[...c.missingCountryCurrent, ...c.missingClientCurrent].join(', ')}`);
