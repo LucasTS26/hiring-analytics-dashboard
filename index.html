@@ -991,8 +991,8 @@ function renderClients(c, dashboard, rec) {
 // the source text itself is never edited. A title not listed here is NEVER guessed into a role — it is
 // counted in a visible "Unmapped" bucket and named in the warning banner until it is added below.
 const CORE_ROLE_MAP = {
-  'Project & Operations Manager': ['Project Manager','PM - Client Services','Project Manager (Creative Operations)','Project Manager – Creative','Project and Operations Manager','Operations & Implementation Specialist','Planning & Operations Manager','Resourcing and Ops Coordinator','Director - Creative Operations','Payroll & HR Operations Manager'],
-  'Paid Media & Performance Marketing': ['Paid Media Manager','Paid Media Specialist','Senior Paid Media Specialist','Paid Search Analyst','Paid Search & Social Analyst','Paid Recruitment Marketing Specialist','Performance Marketer','Sr. Performance Marketing Manager','Growth Lead (Head of Growth)'],
+  'Project & Operations Manager': ['Project Manager','PM - Client Services','Project Manager (Creative Operations)','Project Manager – Creative','Project and Operations Manager','Operations & Implementation Specialist','Planning & Operations Manager','Resourcing and Ops Coordinator','Director - Creative Operations','Payroll & HR Operations Manager','Project Manager - Client Services'],
+  'Paid Media & Performance Marketing': ['Paid Media Manager','Paid Media Specialist','Senior Paid Media Specialist','Paid Search Analyst','Paid Search & Social Analyst','Paid Recruitment Marketing Specialist','Performance Marketer','Sr. Performance Marketing Manager','Growth Lead (Head of Growth)','Amazon Ads Specialist','Senior Paid Search Specialist (Google Ads)'],
   'Graphic Designer': ['Graphic Designer','Designer','Social Content Designer','Motion Graphic Designer'],
   'Social Media': ['Social Media Manager','Social Media Assistant','Social Content Creator'],
   'Executive & Operations Assistant': ['Executive Assistant','Operations Assistant'],
@@ -1007,6 +1007,7 @@ const CORE_ROLE_MAP = {
   'eCommerce': ['Director of eCommerce','eCommerce Strategist'],
   'Video Editor': ['Senior Video Editor','Senior Editor/Designer'],
   'UI/UX Designer': ['UI/UX Designer'],
+  'Finance & Accounting': ['Senior Accountant'], // added 2026-11-07 (Lucas)
 };
 const UNMAPPED_ROLE = 'Unmapped';
 function normalizeRoleKey(t) {
